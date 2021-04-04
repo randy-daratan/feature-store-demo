@@ -1,0 +1,5 @@
+confluent_kafka
+avro
+flask
+feast
+invoke
