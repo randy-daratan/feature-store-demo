@@ -45,7 +45,7 @@ services:
     image: gcr.io/kf-feast/feast-jupyter:${FEAST_VERSION}
     volumes:
       - ${GCP_SERVICE_ACCOUNT}:/etc/gcloud/service-accounts/key.json
-      - $PWD:/shared
+      - ../..:/home/jovyan
     depends_on:
       - core
     environment:

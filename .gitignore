@@ -1,1 +1,9 @@
 infra/docker-compose/.env
+.cache
+.config
+.feast
+.ipython
+.jupyter
+.local
+*.csv
+*.parquet
