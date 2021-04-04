@@ -1,12 +1,15 @@
-import os
-
-from feast import FeatureTable
+import json
+from feast import Feature, FeatureTable, Entity, ValueType
 from feast.data_source import FileSource, KafkaSource
-from feast.data_format import ParquetFormat, ProtoFormat
+from feast.data_format import ParquetFormat, AvroFormat
 
-from .config import (entity_name, offline_table_name, offline_parquet_path,
-                     offline_feature_list, online_table_name,
-                     online_feature_list)
+from config import offline_table_name, offline_parquet_path, online_table_name
+
+entity_name = 'entity_id'
+entity = Entity(entity_name, description='entity_id', value_type=ValueType.INT64)
+
+offline_feature_list = [Feature(f'V{i}', ValueType.Float) for i in range(1, 29)] + \
+                       [Feature('Amount', ValueType.Float), ('Class', ValueType.STRING), ('Time', ValueType.INT32)]
 
 offline_feature_table = FeatureTable(
     name=offline_table_name,
@@ -20,15 +23,27 @@ offline_feature_table = FeatureTable(
     )
 )
 
+online_feature_list = [Feature('V27', ValueType.Float), Feature('V28', ValueType.Float)]
+
+avro_schema_json = json.dumps({
+    "type": "record",
+    "name": online_table_name,
+    "fields": [
+        {"name": "entity_id", "type": "long"},
+        {"name": "V27", "type": "float"},
+        {"name": "V28", "type": "float"},
+    ],
+})
+
 online_feature_table = FeatureTable(
     name=online_table_name,
     entities=[entity_name],
     features=online_feature_list,
     stream_source=KafkaSource(
         bootstrap_servers="localhost:9094",
-        message_format=ProtoFormat(class_path="class.path"),
+        event_timestamp_column="datetime",
+        created_timestamp_column="datetime",
         topic="credit_card",
-        event_timestamp_column="event_timestamp",
-        created_timestamp_column="created_timestamp",
+        message_format=AvroFormat(avro_schema_json)
     )
 )
