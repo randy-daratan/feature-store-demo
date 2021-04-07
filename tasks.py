@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from feast import Client
 from invoke import task
-from settings import offline_table_name, avro_schema_json, from_date_obj
+from settings import offline_table_name, avro_schema_json, from_date_obj, online_table_name
 from scripts import register_feature
 from scripts.features import offline_feature_table, online_feature_table
 from scripts.convert_data_to_parquet import convert_to_parquet
@@ -85,8 +85,8 @@ def get_online_features(c):
     '''
     client = get_feast_client()
     features = client.get_online_features(
-        feature_refs=[f"{offline_table_name}:V24", f"{offline_table_name}:V28"],
-        entity_rows=[{'entity_id': i} for i in range(1, 2001)]).to_dict()
+        feature_refs=[f"{online_table_name}:V28", f"{online_table_name}:V27"],
+        entity_rows=[{'entity_id': 2000} for i in range(1)]).to_dict()
     print(features)
 
 
@@ -127,17 +127,13 @@ def read_parquet(uri):
 
 
 def get_sample_entities():
-    return np.arange(0, 2000).tolist()# np.random.choice(284807, size=100, replace=False)
+    return np.arange(0, 2000).tolist()
 
 
 def get_sample_entities_with_timestamp():
-    #entities = get_sample_entities()
     entities_with_timestamp = pd.DataFrame(columns=['entity_id', 'event_timestamp'])
     entities_with_timestamp['entity_id'] = np.arange(0, 2000)
-    entities_with_timestamp['event_timestamp'] = pd.to_datetime(#np.random.randint(
-        from_date_obj)
-        #datetime.datetime.now().timestamp(),
-        #size=10), unit='s')
+    entities_with_timestamp['event_timestamp'] = pd.to_datetime(from_date_obj)
     return entities_with_timestamp
 
 @task
@@ -145,7 +141,6 @@ def delete_feature_table(c):
     client = get_feast_client()
     client.delete_feature_table('credit_card_batch')
     client.delete_feature_table('credit_card_online')
-    #register_feature.register_entity_and_features(client)
 
 
 @task
@@ -169,6 +164,17 @@ def start_streaming_to_online_store(c):
     )
 
 
+@task
+def send_record_to_kafka(c):
+    record = {
+        'V27': 1000.0,
+        'V28': 1000.0,
+        'datetime': datetime.datetime.now().replace(tzinfo=pytz.utc),
+        'entity_id': 2000
+    }
+    send_avro_record_to_kafka(topic=online_table_name, record=record)
+
+
 def send_avro_record_to_kafka(topic, record):
     value_schema = avro.schema.parse(avro_schema_json)
     writer = DatumWriter(value_schema)
@@ -177,7 +183,7 @@ def send_avro_record_to_kafka(topic, record):
     writer.write(record, encoder)
 
     producer = Producer({
-        "bootstrap.servers": 'localhost:9092',
+        "bootstrap.servers": 'localhost:9094',
     })
     producer.produce(topic=topic, value=bytes_writer.getvalue())
     producer.flush()

@@ -17,7 +17,12 @@ avro_schema_json = json.dumps({
     "name": online_table_name,
     "fields": [
         {"name": "entity_id", "type": "long"},
-        {"name": "V27", "type": "float"},
-        {"name": "V28", "type": "float"},
+        {"name": "V27", "type": "double"},
+        # {"name": "V28", "type": "double"},
+        {
+            "name": "datetime",
+            "type": {"type": "long", "logicalType": "timestamp-micros"},
+        },
+
     ],
 })
