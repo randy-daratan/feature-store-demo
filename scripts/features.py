@@ -8,7 +8,7 @@ from settings import offline_table_name, offline_parquet_path, online_table_name
 entity_name = 'entity_id'
 entity = Entity(entity_name, description='entity_id', value_type=ValueType.INT64)
 
-offline_feature_list = [Feature(f'V{i}', ValueType.DOUBLE) for i in range(1, 29)] + \
+offline_feature_list = [Feature(f'V{i}', ValueType.DOUBLE, labels={'name': f'V{i}'}) for i in range(1, 29)] + \
                        [Feature('Amount', ValueType.DOUBLE), Feature('Class', ValueType.STRING), Feature('Time', ValueType.INT64)]
 
 offline_feature_table = FeatureTable(
@@ -19,7 +19,14 @@ offline_feature_table = FeatureTable(
         event_timestamp_column="datetime",
         created_timestamp_column="created",
         file_format=ParquetFormat(),
-        file_url=str(offline_parquet_path),
+        file_url='file://'+str(offline_parquet_path),
+    ),
+    stream_source=KafkaSource(
+        bootstrap_servers="localhost:9094",
+        event_timestamp_column="datetime",
+        created_timestamp_column="created",
+        topic="credit_card",
+        message_format=AvroFormat(avro_schema_json)
     )
 )
 
@@ -34,7 +41,7 @@ online_feature_table = FeatureTable(
         event_timestamp_column="datetime",
         created_timestamp_column="created",
         file_format=ParquetFormat(),
-        file_url=str(offline_parquet_path),
+        file_url='file://'+str(offline_parquet_path),
     ),
     stream_source=KafkaSource(
         bootstrap_servers="localhost:9094",

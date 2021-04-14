@@ -12,28 +12,31 @@ import numpy as np
 import pandas as pd
 from feast import Client
 from invoke import task
-from settings import offline_table_name, avro_schema_json, from_date_obj, online_table_name
+from settings import offline_table_name, avro_schema_json, from_date_obj, online_table_name, topic_name
 from scripts import register_feature
 from scripts.features import offline_feature_table, online_feature_table
 from scripts.convert_data_to_parquet import convert_to_parquet
 '''
 1. Convert credit card csv to dataframe for feast historical store
 2. Register feature table definition to feast-core
-3. Get historical data for training purpose
-4. Sync historical data to online store
-5. Get online training data from feast serving
-6. Stream data to feast serving
-7. Prediction module
-8. Package prediction into an api of some sort
+3. Inspect feature and metadata
+4. Get historical data for training purpose
+5. Sync historical data to online store
+6. Get feature from online store
+7. Update feature store from kafka
+8. Prediction module
+9. Package prediction into an api of some sort
 '''
 
 
 @task
-def convert_data_parquet(c):
+def ingest_data(c):
     '''
     1. Convert credit card csv to dataframe for feast historical store
     '''
-    convert_to_parquet()
+    client = get_feast_client()
+    df_offline, df_online = convert_to_parquet()
+    client.ingest(offline_feature_table, df_offline)
 
 @task
 def register_features(c):
@@ -45,9 +48,28 @@ def register_features(c):
 
 
 @task
+def inspect_features(c):
+    """
+    3. Inspect feature and metadata
+    """
+    client = get_feast_client()
+    print('############################')
+    print('1. LIST OF ALL FEATURE TABLES')
+    print(client.list_feature_tables())
+    print('############################')
+    print('############################')
+    print('2. OFFLINE TABLE')
+    feature_table = client.get_feature_table("credit_card_batch")
+    print(feature_table.created_timestamp)
+    print()
+    print(client.get_feature_table("credit_card_batch").to_yaml())
+    print('############################')
+
+
+@task
 def get_historical_data(c):
     '''
-    3. Get historical data for training purpose
+    4. Get historical data for training purpose
     '''
     client = get_feast_client()
     job = client.get_historical_features(
@@ -67,7 +89,7 @@ def get_historical_data(c):
 @task
 def sync_offline_to_online(c):
     '''
-    4. Sync historical data to online store
+    5. Sync historical data to online store
     '''
     client = get_feast_client()
     job = client.start_offline_to_online_ingestion(
@@ -81,13 +103,51 @@ def sync_offline_to_online(c):
 @task
 def get_online_features(c):
     '''
-    5. Get online training data from feast serving
+    6. Get feature from online store
     '''
     client = get_feast_client()
     features = client.get_online_features(
-        feature_refs=[f"{online_table_name}:V28", f"{online_table_name}:V27"],
+        feature_refs=[f"{offline_table_name}:V28", f"{offline_table_name}:V27"],
         entity_rows=[{'entity_id': 2000} for i in range(1)]).to_dict()
     print(features)
+
+
+@task
+def create_topic(c):
+    """
+    7. Update feature store from kafka
+    """
+    from confluent_kafka.admin import AdminClient, NewTopic
+    admin = AdminClient({'bootstrap.servers': 'localhost:9094'})
+    new_topic = NewTopic(topic_name, num_partitions=1, replication_factor=3)
+    admin.create_topics([new_topic])
+
+
+@task
+def start_streaming_to_online_store(c):
+    """
+    7. Update feature store from kafka
+    """
+    client = get_feast_client()
+    job = client.start_stream_to_online_ingestion(
+        offline_feature_table
+    )
+
+
+@task
+def send_record_to_kafka(c):
+    """
+    7. Update feature store from kafka
+    """
+    record = {f'V{i}': 1000 for i in range(1, 29)}
+    record.update({
+        'datetime': datetime.datetime.now().replace(tzinfo=pytz.utc),
+        'entity_id': 2000,
+        'Class': '1',
+        'Time': 1,
+        'Amount': 1,
+    })
+    send_avro_record_to_kafka(topic=topic_name, record=record)
 
 
 def get_feast_client():
@@ -144,35 +204,9 @@ def delete_feature_table(c):
 
 
 @task
-def inspect_features(c):
-    client = get_feast_client()
-    print(client.get_feature_table("credit_card_batch").to_yaml())
-    print(client.get_feature_table("credit_card_online").to_yaml())
-
-
-@task
 def display_result(c):
     df = read_parquet('file:///Users/ailabadmin/feature-store-demo/output/historical_feature_output/b3e8b2a3-2ec7-4ffb-aaf9-8cf0eb636d46')
     print(df)
-
-
-@task
-def start_streaming_to_online_store(c):
-    client = get_feast_client()
-    job = client.start_stream_to_online_ingestion(
-        online_feature_table
-    )
-
-
-@task
-def send_record_to_kafka(c):
-    record = {
-        'V27': 1000.0,
-        'V28': 1000.0,
-        'datetime': datetime.datetime.now().replace(tzinfo=pytz.utc),
-        'entity_id': 2000
-    }
-    send_avro_record_to_kafka(topic=online_table_name, record=record)
 
 
 def send_avro_record_to_kafka(topic, record):

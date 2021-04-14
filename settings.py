@@ -11,14 +11,17 @@ from_date_obj = datetime.datetime.strptime(from_date_str, '%Y-%m-%d %H:%M:%S')
 offline_table_name = 'credit_card_batch'
 online_table_name = 'credit_card_online'
 model_path = Path(data_dir) / 'lgbm.model'
+topic_name = 'credit_card'
 
 avro_schema_json = json.dumps({
     "type": "record",
-    "name": online_table_name,
+    "name": topic_name,
     "fields": [
         {"name": "entity_id", "type": "long"},
-        {"name": "V27", "type": "double"},
-        # {"name": "V28", "type": "double"},
+        {"name": "Class", "type": "string"},
+        {"name": "Amount", "type": "double"},
+        {"name": "Time", "type": "long"},
+        *[{"name": f"V{i}", "type": "double"} for i in range(1, 29)],
         {
             "name": "datetime",
             "type": {"type": "long", "logicalType": "timestamp-micros"},
