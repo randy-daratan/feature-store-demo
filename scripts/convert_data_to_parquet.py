@@ -20,5 +20,4 @@ def convert_to_parquet():
     df_offline.loc[:, 'datetime'] = pd.to_datetime(settings.from_date_obj)  # + pd.to_timedelta(df_offline['Time'], unit='s')
     df_offline.loc[:, 'created'] = pd.to_datetime(settings.from_date_obj)
 
-    df_online = df_offline[['V27', 'V28']]
-    return df_offline, df_online
+    return df_offline

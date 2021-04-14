@@ -12,9 +12,9 @@ import numpy as np
 import pandas as pd
 from feast import Client
 from invoke import task
-from settings import offline_table_name, avro_schema_json, from_date_obj, online_table_name, topic_name
+from settings import offline_table_name, avro_schema_json, from_date_obj, topic_name
 from scripts import register_feature
-from scripts.features import offline_feature_table, online_feature_table
+from scripts.features import offline_feature_table
 from scripts.convert_data_to_parquet import convert_to_parquet
 '''
 1. Convert credit card csv to dataframe for feast historical store
@@ -35,7 +35,7 @@ def ingest_data(c):
     1. Convert credit card csv to dataframe for feast historical store
     '''
     client = get_feast_client()
-    df_offline, df_online = convert_to_parquet()
+    df_offline = convert_to_parquet()
     client.ingest(offline_feature_table, df_offline)
 
 @task
@@ -61,7 +61,6 @@ def inspect_features(c):
     print('2. OFFLINE TABLE')
     feature_table = client.get_feature_table("credit_card_batch")
     print(feature_table.created_timestamp)
-    print()
     print(client.get_feature_table("credit_card_batch").to_yaml())
     print('############################')
 
@@ -115,7 +114,7 @@ def get_online_features(c):
 @task
 def create_topic(c):
     """
-    7. Update feature store from kafka
+    7. Update feature store from kafka, need to run this to create topic in kafka
     """
     from confluent_kafka.admin import AdminClient, NewTopic
     admin = AdminClient({'bootstrap.servers': 'localhost:9094'})
@@ -126,7 +125,7 @@ def create_topic(c):
 @task
 def start_streaming_to_online_store(c):
     """
-    7. Update feature store from kafka
+    7. Update feature store from kafka, need to start this first
     """
     client = get_feast_client()
     job = client.start_stream_to_online_ingestion(
